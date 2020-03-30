@@ -1,0 +1,12 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+/output/*
+
+/inputs/*
+/DAP/*
+
+!/inputs/.gitkeep
+!/output/.gitkeep

@@ -1,0 +1,408 @@
+---
+title: "Education: Facility assessment Daily Monitoring Report"
+author: "MH Khan"
+date: "`r format(Sys.time(), '%d %B, %Y, %H:%M ')`"
+output:
+  html_document:
+    code_folding: hide
+    toc: true
+    theme: paper
+---
+
+
+```{r include=FALSE, warning = FALSE, message=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE,
+                      message=FALSE,
+                      warning = FALSE)
+
+library(dplyr)
+library(HighFrequencyChecks)
+library(srvyr)
+library(anytime)
+library(readr)
+library(stringr)
+library(lubridate)
+library(rgdal)
+library(kableExtra)
+library(gsubfn)
+library(stringi)
+library(butteR)
+
+source("functions/GIS_Project_Functions.R")
+source("functions/Load_Audit.R")
+source("functions/get_na_response_rates.R")
+
+
+#load data
+
+data <- read.csv("inputs/01_data_collection/facility_data.csv",stringsAsFactors = FALSE, 
+                 na.strings = c(""," ", "n/a",NA)) %>% dplyr::mutate(
+                   consent = "yes"
+                 )
+date_log_path <- "output/01_date_logger/date_logger.csv"
+
+
+############################date log##############################
+
+data$reported_date <- ymd(substr(data$survey_start,1,10))
+date_log_full<- data %>% select(X_index,X_uuid,reported_date)
+
+
+if(write_csv_output=="yes"){
+date_log_track <- paste0("output/01_date_logger/",str_replace_all(day_to_run,"-","_"),"_date_logger.csv") 
+write.csv(date_log_full,date_log_path,row.names=FALSE)
+file.copy(from = date_log_path,to = date_log_track,overwrite = T)
+}
+```
+
+## Progress Tracking
+Total number of survey so far is **`r nrow(data)`**.
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+
+sample_size <- read.csv("inputs/02_sampling/sampling.csv") 
+
+complete_by_upazila<-data %>% 
+  group_by(upazilla) %>% 
+  summarise(
+    number_survey=n()) %>% 
+  full_join(sample_size,by="upazilla", all.x=TRUE, all.y=TRUE) %>% 
+  mutate(
+    number_complete= ifelse(is.na(number_survey),0,number_survey),
+    points_needed=sample_size,
+    points_remaining=points_needed-number_complete,
+  ) %>% 
+select(c("upazilla","points_needed", "number_complete" ,"points_remaining")) %>% arrange(upazilla)
+
+#total number of survey by date 
+survey_by_date <- data %>% dplyr::group_by(reported_date) %>% dplyr::summarise(
+  number_of_survey = n()
+)
+
+survey_by_date %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Total number of survey by date ") %>% kable_styling(position = "center")
+
+complete_by_upazila %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Tracking sheet") %>% kable_styling(position = "center")
+```
+
+
+## Duration 
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+
+path_unzip <- "inputs/99_other/88_audit"
+audit_zip_dir<-"inputs/01_data_collection/02_audit"
+audit_zipfile <-paste0(audit_zip_dir,"/aqL8VuhFUMxpELMQ4GLnpw_",str_replace_all(day_to_run,"-","_"),".zip")
+copy_zip_to<-paste0("output/02_audit/",day_to_run,".zip")
+audit_node<-"/aqL8VuhFUMxpELMQ4GLnpw/"
+
+audit_yes<-Load_Audit(data=data, 
+                      path.to.zip = audit_zipfile,
+                      path.to.unzip = path_unzip,
+                      copy.zip = TRUE,
+                      path.to.copy.zip = copy_zip_to,
+                      delete.unzipped=TRUE
+)
+
+
+dfl<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  start_question<- d %>% filter(node==paste0(audit_node,"intro_text")& !is.na(event)) %>% 
+    select(end) 
+  start_question<-min(start_question$end)
+  end_question<-d %>% filter(node==paste0(audit_node,"end_note")& !is.na(node)) %>% 
+    select(start)
+  end_question<-max(end_question$start)
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  dfl[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+duration_df2<-do.call("rbind", dfl)
+
+htdf<-data %>%  
+  left_join(duration_df2, by= c("X_uuid"="uuid")) %>% as.data.frame()
+
+is.na(htdf$duration_minutes) <- sapply(htdf$duration_minutes,is.infinite) #inf or -inf to NA
+
+```
+
+### Duration Statistics
+Statistics on survey duration are calculated from the audit file and are now correct.
+
+The mean time for a completed questionaire so far is **`r mean(htdf$duration_minutes, na.rm=TRUE)`**.
+
+The median time for a completed questionaire so far is **`r median(htdf$duration_minutes, na.rm=TRUE)`**.
+
+
+```{r eval=TRUE, echo=FALSE, results='asis'}
+mindur <- 20
+quick_surveys<-htdf %>% filter(duration_minutes < mindur)
+
+quick_survey_daily<-quick_surveys %>% group_by(reported_date, enumerator_id) %>% 
+  select(reported_date, enumerator_id, X_uuid,duration_minutes, upazilla) %>% arrange(reported_date)
+
+quick_survey_information<-data.frame(quick_surveys$enumerator_id,quick_surveys$X_uuid, quick_surveys$duration_minutes)
+
+duration_by_enumerator <- htdf %>%
+  mutate(zscore = scale(duration_minutes),
+  zscoreLog = scale(log(duration_minutes))) %>%
+  group_by(enumerator_id) %>%
+  summarise(
+  number_surveys=n(),  
+  mean_duration = mean(duration_minutes, na.rm = TRUE),
+  median_duration = median(duration_minutes, na.rm=TRUE)
+  ) %>%
+  ungroup %>%
+  mutate(
+  difference_from_mean = mean_duration - mean(htdf$duration_minutes,na.rm=TRUE),
+  difference_from_median = median_duration - median(htdf$duration_minutes,na.rm=TRUE)
+  )
+
+
+quick_survey_daily%>% kable( longtable = T, booktabs = T, linesep = "",caption= paste0("Enumerators That Completed a Full Survey In Less Than ",mindur, " minutes")) %>% kable_styling(position = "center")
+
+duration_by_enumerator%>% kable( longtable = T, booktabs = T, linesep = "",caption= "Duration Statistics By Enumerator (minutes)") %>% kable_styling(position = "center")
+
+```
+
+## Age range
+```{r eval=TRUE, echo=FALSE, results='asis'}
+pre_and_primary <- c("age_ranges.pre.primary","age_ranges.class_1.5")
+
+higher <- c("age_ranges.class_6.10","age_ranges.class_11.12")
+
+pre_and_primary_secondary <- c("age_ranges.pre.primary","age_ranges.class_1.5","age_ranges.class_6.10")
+ 
+
+df <- data %>% dplyr::filter(rowSums(data[pre_and_primary],na.rm = T) > 0 & 
+                                 rowSums(data[higher],na.rm = T)>0 )
+df2 <-  df %>% 
+    dplyr::filter(rowSums(df[pre_and_primary_secondary],na.rm = T) != 3) %>% 
+    dplyr::select(c("reported_date","X_uuid","age_ranges.pre.primary",
+                    "age_ranges.class_1.5","age_ranges.class_6.10",
+                    "age_ranges.class_11.12"))
+df2 %>% kable( longtable = T, booktabs = T, linesep = "",caption="Surveys in which respondent says the age range is (pre paimary and class 6-10) or (1-5 and 11-12) at a time") %>% kable_styling(position = "center")
+```
+
+## Number of teacher
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+df <- data %>% dplyr::mutate(
+  total_teacher = data$present_in_learning_facilities.male_teachers_per_education_facility +
+         data$present_in_learning_facilities.female_teachers_per_education_facility
+) %>% dplyr::filter(total_teacher > 50) %>% select(c("reported_date","X_uuid","present_in_learning_facilities.male_teachers_per_education_facility",
+            "present_in_learning_facilities.female_teachers_per_education_facility","total_teacher" ))
+
+df %>% kable( longtable = T, booktabs = T, linesep = "",caption="Surveys in which respondent says the number of teacher is greater than 50") %>% kable_styling(position = "center")
+
+```
+
+## Transportation
+```{r eval=TRUE, echo=FALSE, results='asis'}
+
+df <- data %>% dplyr::filter(barriers_and_facilitators.education_facilities_charging_fees_3 == "yesall" |
+barriers_and_facilitators.education_facilities_charging_fees_3 == "yessome") %>% 
+  dplyr::filter(physically_accessible.education_facility_providing_transportation == "no") %>% 
+  dplyr::select(c("reported_date","X_uuid","barriers_and_facilitators.education_facilities_charging_fees_3",
+                  "physically_accessible.education_facility_providing_transportation"))
+
+df %>% kable( longtable = T, booktabs = T, linesep = "",caption="Surveys in which respondent says they took transportation fee but they did not provide transportaion facility") %>% kable_styling(position = "center")
+```
+
+## All fees
+```{r eval=TRUE, echo=FALSE, results='asis'}
+
+all_frequency <- data %>% dplyr::select(contains("education_facilities_charging_fees_by_frequency")) %>% dplyr::select(-contains("other"))  %>% colnames()
+
+all_fees <- data %>% dplyr::select(starts_with("barriers_and_facilitators.average_education_facility")) %>% colnames() 
+
+a2 <-data %>%  dplyr::mutate(
+  fees_annually 
+  = if_else(barriers_and_facilitators.tuition_education_facilities_charging_fees_by_frequency == "monthly",                        as.integer(barriers_and_facilitators.tuition_education_facilities_charging_fees*12),
+    if_else(barriers_and_facilitators.tuition_education_facilities_charging_fees_by_frequency == "quarterly",
+          as.integer(barriers_and_facilitators.tuition_education_facilities_charging_fees*4),
+    if_else(barriers_and_facilitators.tuition_education_facilities_charging_fees_by_frequency == "bi-annually",
+          as.integer(barriers_and_facilitators.tuition_education_facilities_charging_fees*2),
+   as.integer(barriers_and_facilitators.tuition_education_facilities_charging_fees), NULL)))) %>% 
+  dplyr::select(c("reported_date","X_uuid","fees_annually")) 
+
+
+a3 <-data %>%  dplyr::mutate(
+fees_annually =
+  if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency3 == "monthly", 
+                as.integer(barriers_and_facilitators.average_education_facility_fees3*12) ,
+  if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency3 == "quarterly",
+                as.integer(barriers_and_facilitators.average_education_facility_fees3*4),
+  if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency3 == "bi-annually",
+                as.integer(barriers_and_facilitators.average_education_facility_fees3*2),
+  as.integer(barriers_and_facilitators.average_education_facility_fees3), NULL)))) %>% dplyr::select(c("reported_date","X_uuid","fees_annually"))
+
+
+a4 <-data %>% dplyr::mutate(
+fees_annually = 
+  if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency4 == "monthly", 
+                          as.integer(barriers_and_facilitators.average_education_facility_fees4*12) ,
+  if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency4 == "quarterly",
+                          as.integer(barriers_and_facilitators.average_education_facility_fees4*4),
+  if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency4 == "bi-annually",
+                          as.integer(barriers_and_facilitators.average_education_facility_fees4*2),
+   as.integer(barriers_and_facilitators.average_education_facility_fees4), NULL)))) %>%
+dplyr::select( c("reported_date","X_uuid","fees_annually"))
+
+a5 <-data %>% dplyr::mutate(
+  fees_annually = 
+    if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency5 == "monthly", 
+                          as.integer(barriers_and_facilitators.average_education_facility_fees5*12) ,
+    if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency5 == "quarterly",
+                          as.integer(barriers_and_facilitators.average_education_facility_fees5*4),
+    if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency5 == "bi-annually",
+                          as.integer(barriers_and_facilitators.average_education_facility_fees5*2),
+     as.integer(barriers_and_facilitators.average_education_facility_fees5), NULL)))) %>% 
+  dplyr::select( c("reported_date","X_uuid","fees_annually"))
+
+a6 <-data %>% dplyr::mutate(
+  fees_annually = 
+    if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency6 == "monthly", 
+                          as.integer(barriers_and_facilitators.average_education_facility_fees6*12) ,
+    if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency6 == "quarterly",
+                          as.integer(barriers_and_facilitators.average_education_facility_fees6*4),
+    if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency6 == "bi-annually",
+                          as.integer(barriers_and_facilitators.average_education_facility_fees6*2),
+    as.integer(barriers_and_facilitators.average_education_facility_fees6), NULL)))) %>% dplyr::select(
+                                    c("reported_date","X_uuid","fees_annually"))
+
+a7 <-data %>% dplyr::mutate(
+  fees_annually = 
+    if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency7 == "monthly", 
+                          as.integer(barriers_and_facilitators.average_education_facility_fees7*12) ,
+    if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency7 == "quarterly",
+                          as.integer(barriers_and_facilitators.average_education_facility_fees7*4),
+    if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency7 == "bi-annually",
+                          as.integer(barriers_and_facilitators.average_education_facility_fees7*2),
+    as.integer(barriers_and_facilitators.average_education_facility_fees7), NULL)))) %>% dplyr::select(
+                                    c("reported_date","X_uuid","fees_annually"))
+
+a8 <-data %>% dplyr::mutate(
+  fees_annually = 
+    if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency8 == "monthly", 
+                          as.integer(barriers_and_facilitators.average_education_facility_fees8*12) ,
+    if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency8 == "quarterly",
+                                  as.integer(barriers_and_facilitators.average_education_facility_fees8*4),
+    if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency8 == "bi-annually",
+                          as.integer(barriers_and_facilitators.average_education_facility_fees8*2),
+    as.integer(barriers_and_facilitators.average_education_facility_fees8), NULL)))) %>% dplyr::select(
+                                    c("reported_date","X_uuid","fees_annually"))
+
+a9 <-data %>% dplyr::mutate(
+  fees_annually = 
+    if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency9 == "monthly", 
+                          as.integer(barriers_and_facilitators.average_education_facility_fees9*12) ,
+    if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency9 == "quarterly",
+                          as.integer(barriers_and_facilitators.average_education_facility_fees9*4),
+    if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency9 == "bi-annually",
+                          as.integer(barriers_and_facilitators.average_education_facility_fees9*2),
+    as.integer(barriers_and_facilitators.average_education_facility_fees9), NULL)))) %>% dplyr::select(
+                                    c("reported_date","X_uuid","fees_annually"))
+
+a10 <-data %>% dplyr::mutate(
+  fees_annually = 
+    if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency10 == "monthly", 
+                          as.integer(barriers_and_facilitators.average_education_facility_fees10*12) ,
+    if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency10 == "quarterly",
+                          as.integer(barriers_and_facilitators.average_education_facility_fees10*4),
+    if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency10 == "bi-annually",
+                          as.integer(barriers_and_facilitators.average_education_facility_fees10*2),
+    as.integer(barriers_and_facilitators.average_education_facility_fees10), NULL)))) %>% dplyr::select(
+                                    c("reported_date","X_uuid","fees_annually"))
+
+a11 <-data %>% dplyr::mutate(
+  fees_annually = 
+    if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency11 == "monthly", 
+                          as.integer(barriers_and_facilitators.average_education_facility_fees11*12) ,
+    if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency11 == "quarterly",
+                           as.integer(barriers_and_facilitators.average_education_facility_fees11*4),
+    if_else(barriers_and_facilitators.education_facilities_charging_fees_by_frequency11 == "bi-annually",
+                          as.integer(barriers_and_facilitators.average_education_facility_fees11*2),
+    as.integer(barriers_and_facilitators.average_education_facility_fees11), NULL)))) %>% dplyr::select(
+                                    c("reported_date","X_uuid","fees_annually"))
+
+df <- rbind(a2,a3,a4,a5,a6,a7,a8,a9,a10,a11) %>% dplyr::filter(!is.na(fees_annually)) %>% dplyr::filter(
+  fees_annually > 1000
+)
+
+unique_x_uuid <- df$X_uuid %>% unique()
+cols_needed<-c("X_uuid","reported_date")
+df2  <- data %>% dplyr::filter(X_uuid %in% unique_x_uuid)
+
+df3 <- df2[cols_needed]
+
+
+df3 %>% kable( longtable = T, booktabs = T, linesep = "",caption="Surveys in which respondent says the fees of any facility is greater than 1000") %>% kable_styling(position = "center")
+
+```
+
+## Enumerators Statistics
+```{r warning = FALSE, message=FALSE}
+#total col 18+5 =23
+col_name_enu_multiple <- data %>% dplyr::select(dplyr::ends_with(".dont_know")) %>% colnames()
+
+fees_dont_know <- data %>% 
+  dplyr::select(starts_with("barriers_and_facilitators.education_facilities_charging_fees_")) %>% 
+   dplyr::select(-contains("by"))%>%  dplyr::select(-contains("other")) %>% colnames()
+
+col_name_enu_si <- c("gender_segregated_classes", "gender_separated_education_facilities",
+"physically_accessible.education_facility_providing_transportation","mechanism_with_caregivers",
+"school_improvement_plan","grant_for_improvement_plan",
+"community_mobilized_resources","receiving_support_from_ngos",fees_dont_know)
+
+df <- data %>% mutate(
+  dontknow_ans_si = rowSums(data[col_name_enu_si] =="dont_know",na.rm = T),
+dontknow_ans_multiple = rowSums(data[col_name_enu_multiple] =="1",na.rm = T),
+rowsum_dont_know_enu = ( dontknow_ans_multiple + dontknow_ans_si))
+
+enu_records_dont_know <- df %>% dplyr::filter(rowsum_dont_know_enu > 12 ) %>% select(reported_date, enumerator_id, X_uuid, rowsum_dont_know_enu)
+
+
+enu_records_dont_know %>% kable( longtable = T, booktabs = T, linesep = "",caption="Surveys that enumerators record “don’t know” for over half of the questions") %>% kable_styling(position = "center")
+```
+
+## Start and end day is not same
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+start_end_date <- data %>%  select(survey_start,end_survey,reported_date,X_uuid,enumerator_id) %>% mutate(
+  start_date = substr(data$survey_start,1,10),
+  end_date = substr(data$end_survey,1,10),
+  same_date = if_else(start_date == end_date,"yes","no")
+)
+not_same_date <- start_end_date %>% dplyr::filter(same_date == "no") %>% select(reported_date,enumerator_id,X_uuid,start_date,end_date) %>% dplyr::arrange(reported_date) 
+
+
+not_same_date %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys that do not end on the same day they started") %>% kable_styling(position = "center")
+
+```
+
+## Check NAs
+NA response rates written to shared dropbox folder
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+
+dropbox_aux<-"C:\\Users\\MEHEDI\\Dropbox\\REACH_BGD\\REACH\\Ongoing\\70XXX - UNICEF (Host Community Education)\\04_daily_monitoring\\01_facility_assessment\\01_daily_data\\03_NA_response/"
+dropbox_aux_na_path<-paste0(dropbox_aux, str_replace_all(ymd(day_to_run),"-","_"))
+
+data_na<-get_na_response_rates(data)
+
+if(write_csv_output == "yes"){
+write.csv( data_na,paste0(dropbox_aux_na_path, "_NA_response.csv"))
+}
+
+```
+
+## Other response
+Other responses are written to shared dropbox folder
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+dropbox_path <-  "C:\\Users\\MEHEDI\\Dropbox\\REACH_BGD\\REACH\\Ongoing\\70XXX - UNICEF (Host Community Education)\\04_daily_monitoring\\01_facility_assessment\\01_daily_data\\"
+  data_other<-data%>% 
+    filter_at(vars(ends_with("_other")), any_vars(!is.na(.))) %>% 
+    select(X_uuid,enumerator_id,reported_date, ends_with("_other"))
+if(write_csv_output == "yes"){
+write.csv(data_other,paste0(dropbox_path,"02_other_response/",str_replace_all(day_to_run,"-","_"),"_Other.csv"))
+}
+```
