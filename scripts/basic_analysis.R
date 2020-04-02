@@ -59,12 +59,15 @@ cols_to_analyze<-data_for_analysis[all_coloumn_names] %>% select(-starts_with("O
 
 # factorization -----------------------------------------------------------
 
-dfsvy$variables$barriers_and_facilitators.education_facilities_charging_fees_by_frequency3<- forcats::fct_expand(dfsvy$variables$barriers_and_facilitators.education_facilities_charging_fees_by_frequency3,
-                                                                                                               c( "monthly", "error"))
-dfsvy$variables$barriers_and_facilitators.education_facilities_charging_fees_by_frequency4<- forcats::fct_expand(dfsvy$variables$barriers_and_facilitators.education_facilities_charging_fees_by_frequency4,
-                                                                                                                 c( "annually", "error"))                                                              
+dfsvy$variables$barriers_and_facilitators.education_facilities_charging_fees_by_frequency3<- forcats::fct_expand(
+  dfsvy$variables$barriers_and_facilitators.education_facilities_charging_fees_by_frequency3,c( "monthly", "error"))
+
+dfsvy$variables$barriers_and_facilitators.education_facilities_charging_fees_by_frequency4<- forcats::fct_expand(
+  dfsvy$variables$barriers_and_facilitators.education_facilities_charging_fees_by_frequency4,c( "annually", "error"))                                                              
+
 dfsvy$variables$barriers_and_facilitators.education_facilities_charging_fees_by_frequency6<- forcats::fct_expand(
   dfsvy$variables$barriers_and_facilitators.education_facilities_charging_fees_by_frequency6, c( "annually", "error"))                                                              
+
 dfsvy$variables$barriers_and_facilitators.education_facilities_charging_fees_by_frequency7<- forcats::fct_expand(
   dfsvy$variables$barriers_and_facilitators.education_facilities_charging_fees_by_frequency7, c( "bi-annually", "error"))                                                              
 
