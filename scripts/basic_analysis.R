@@ -80,5 +80,7 @@ dfsvy$variables$inclusive_and_protective_environment.frequency_of_extra.curricul
 basic_analysis_overall<-butteR::mean_proportion_table(design = dfsvy,list_of_variables = cols_to_analyze)
 
 
+# write_csv ---------------------------------------------------------------
+
 output_location <- "output/03_butter_basic_analysis/"
 write.csv(basic_analysis_overall,paste0(output_location,str_replace_all(Sys.Date(),"-","_"),"_basic_analysis_overall.csv"))
