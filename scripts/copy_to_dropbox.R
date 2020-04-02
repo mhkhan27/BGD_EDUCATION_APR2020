@@ -1,6 +1,6 @@
 # common ------------------------------------------------------------------
 
-day_to_run<- Sys.Date()
+day_to_run<- Sys.Date()-1
 
 write_csv_output <- c("yes","no")[1]
 

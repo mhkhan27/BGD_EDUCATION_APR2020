@@ -17,7 +17,7 @@ knitr::opts_chunk$set(echo = FALSE,
                       warning = FALSE)
 
 library(dplyr)
-library(HighFrequencyChecks)
+# library(HighFrequencyChecks)
 library(srvyr)
 library(anytime)
 library(readr)
@@ -41,6 +41,13 @@ data <- read.csv("inputs/01_data_collection/facility_data.csv",stringsAsFactors 
                    consent = "yes"
                  )
 date_log_path <- "output/01_date_logger/date_logger.csv"
+
+#write_to_dropbox
+dropbox_raw_csv_path <-  "C:\\Users\\MEHEDI\\Dropbox\\REACH_BGD\\REACH\\Ongoing\\70iAMD 70EAD - Host Community Education\\04_daily_monitoring\\01_facility_assessment\\01_daily_data\\04_daily_data_csv/"
+ 
+if(write_csv_output == "yes"){
+  write.csv(data,paste0(dropbox_raw_csv_path,str_replace_all(day_to_run,"-","_"),".csv"))
+}
 
 
 ############################date log##############################
