@@ -391,7 +391,7 @@ not_same_date %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Sur
 NA response rates written to shared dropbox folder
 ```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
 
-dropbox_aux<-"C:\\Users\\MEHEDI\\Dropbox\\REACH_BGD\\REACH\\Ongoing\\70XXX - UNICEF (Host Community Education)\\04_daily_monitoring\\01_facility_assessment\\01_daily_data\\03_NA_response/"
+dropbox_aux<-"C:\\Users\\MEHEDI\\Dropbox\\REACH_BGD\\REACH\\Ongoing\\70iAMD 70EAD - Host Community Education\\04_daily_monitoring\\01_facility_assessment\\01_daily_data\\03_NA_response/"
 dropbox_aux_na_path<-paste0(dropbox_aux, str_replace_all(ymd(day_to_run),"-","_"))
 
 data_na<-get_na_response_rates(data)
@@ -405,7 +405,7 @@ write.csv( data_na,paste0(dropbox_aux_na_path, "_NA_response.csv"))
 ## Other response
 Other responses are written to shared dropbox folder
 ```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
-dropbox_path <-  "C:\\Users\\MEHEDI\\Dropbox\\REACH_BGD\\REACH\\Ongoing\\70XXX - UNICEF (Host Community Education)\\04_daily_monitoring\\01_facility_assessment\\01_daily_data\\"
+dropbox_path <-  "C:\\Users\\MEHEDI\\Dropbox\\REACH_BGD\\REACH\\Ongoing\\70iAMD 70EAD - Host Community Education\\04_daily_monitoring\\01_facility_assessment\\01_daily_data\\"
   data_other<-data%>% 
     filter_at(vars(ends_with("_other")), any_vars(!is.na(.))) %>% 
     select(X_uuid,enumerator_id,reported_date, ends_with("_other"))
