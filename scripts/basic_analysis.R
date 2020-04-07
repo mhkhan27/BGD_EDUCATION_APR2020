@@ -15,8 +15,26 @@ for (i in koboquest ){
   source(i)
 }
 
-data_for_analysis <- read.csv("inputs/01_data_collection/facility_data.csv",stringsAsFactors = F, 
-                 na.strings = c(""," ", "n/a",NA))
+
+# cleaning_dataset --------------------------------------------------------
+
+cleaning_log <- read.csv("inputs/01_data_collection/03_cleaned_data/cleaning_log.csv",stringsAsFactors = F, 
+               na.strings = c(""," ", "n/a",NA))
+raw_df <- read.csv("inputs/01_data_collection/facility_data.csv",stringsAsFactors = F, 
+                   na.strings = c(""," ", "n/a",NA))
+butteR::check_cleaning_log(df = raw_df,df_uuid = "X_uuid",cl = cleaning_log,cl_change_type_col = "change_type",cl_uuid = "uuid",
+                           cl_change_col = "indicator",cl_new_val = "new_value")
+
+data_for_analysis <- butteR::implement_cleaning_log(df = raw_df,df_uuid = "X_uuid",cl = cleaning_log,cl_change_type_col = "change_type",cl_uuid = "uuid",
+                                                 cl_change_col = "indicator",cl_new_val = "new_value")
+
+
+
+# basic_analysis  ---------------------------------------------------------
+
+# data_for_analysis <- read.csv("inputs/01_data_collection/03_cleaned_data/master_data.csv",stringsAsFactors = F, 
+                 # na.strings = c(""," ", "n/a",NA))
+
 analysis_sheet <- read.csv("inputs/99_other/Education Analysis Sheet.csv",stringsAsFactors = F, 
                            na.strings = c(""," ", "n/a",NA))
 
@@ -75,7 +93,7 @@ dfsvy$variables$inclusive_and_protective_environment.frequency_of_extra.curricul
   dfsvy$variables$inclusive_and_protective_environment.frequency_of_extra.curricular_actvities6, c( "other", "error"))                                                              
 
 
-# basic analysis ----------------------------------------------------------
+# butteR analysis ----------------------------------------------------------
 
 basic_analysis_overall<-butteR::mean_proportion_table(design = dfsvy,list_of_variables = cols_to_analyze)
 
