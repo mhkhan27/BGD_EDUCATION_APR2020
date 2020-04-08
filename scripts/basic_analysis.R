@@ -16,24 +16,10 @@ for (i in koboquest ){
 }
 
 
-# cleaning_dataset --------------------------------------------------------
-
-cleaning_log <- read.csv("inputs/01_data_collection/03_cleaned_data/cleaning_log.csv",stringsAsFactors = F, 
-               na.strings = c(""," ", "n/a",NA))
-raw_df <- read.csv("inputs/01_data_collection/facility_data.csv",stringsAsFactors = F, 
-                   na.strings = c(""," ", "n/a",NA))
-butteR::check_cleaning_log(df = raw_df,df_uuid = "X_uuid",cl = cleaning_log,cl_change_type_col = "change_type",cl_uuid = "uuid",
-                           cl_change_col = "indicator",cl_new_val = "new_value")
-
-data_for_analysis <- butteR::implement_cleaning_log(df = raw_df,df_uuid = "X_uuid",cl = cleaning_log,cl_change_type_col = "change_type",cl_uuid = "uuid",
-                                                 cl_change_col = "indicator",cl_new_val = "new_value")
-
-
-
 # basic_analysis  ---------------------------------------------------------
 
-# data_for_analysis <- read.csv("inputs/01_data_collection/03_cleaned_data/master_data.csv",stringsAsFactors = F, 
-                 # na.strings = c(""," ", "n/a",NA))
+data_for_analysis <- read.csv("inputs/01_data_collection/03_cleaned_data/data_for_analysis.csv",stringsAsFactors = F,
+                 na.strings = c(""," ", "n/a",NA))
 
 analysis_sheet <- read.csv("inputs/99_other/Education Analysis Sheet.csv",stringsAsFactors = F, 
                            na.strings = c(""," ", "n/a",NA))
@@ -62,7 +48,7 @@ colnames_single_ans_stw<- colnames_single_ans_df$Main.variable.of.interest %>% a
 
 # all columns -------------------------------------------------------------
 
-all_coloumn_names <- c(colnames_single_ans_stw,all_mutiple,"upazilla") 
+all_coloumn_names <- c(colnames_single_ans_stw,all_mutiple,"upazilla","facility_type") 
 
 
 # analysis ----------------------------------------------------------------
@@ -83,9 +69,6 @@ dfsvy$variables$barriers_and_facilitators.education_facilities_charging_fees_by_
 dfsvy$variables$barriers_and_facilitators.education_facilities_charging_fees_by_frequency4<- forcats::fct_expand(
   dfsvy$variables$barriers_and_facilitators.education_facilities_charging_fees_by_frequency4,c( "annually", "error"))                                                              
 
-dfsvy$variables$barriers_and_facilitators.education_facilities_charging_fees_by_frequency6<- forcats::fct_expand(
-  dfsvy$variables$barriers_and_facilitators.education_facilities_charging_fees_by_frequency6, c( "annually", "error"))                                                              
-
 dfsvy$variables$barriers_and_facilitators.education_facilities_charging_fees_by_frequency7<- forcats::fct_expand(
   dfsvy$variables$barriers_and_facilitators.education_facilities_charging_fees_by_frequency7, c( "bi-annually", "error"))                                                              
 
@@ -96,9 +79,11 @@ dfsvy$variables$inclusive_and_protective_environment.frequency_of_extra.curricul
 # butteR analysis ----------------------------------------------------------
 
 basic_analysis_overall<-butteR::mean_proportion_table(design = dfsvy,list_of_variables = cols_to_analyze)
+basic_analysis_by_edu_level<-butteR::mean_proportion_table(design = dfsvy,list_of_variables = cols_to_analyze,aggregation_level = "facility_type")
 
 
 # write_csv ---------------------------------------------------------------
 
 output_location <- "output/03_butter_basic_analysis/"
 write.csv(basic_analysis_overall,paste0(output_location,str_replace_all(Sys.Date(),"-","_"),"_basic_analysis_overall.csv"))
+write.csv(basic_analysis_by_edu_level,paste0(output_location,str_replace_all(Sys.Date(),"-","_"),"_basic_analysis_by_edu_level.csv"))
