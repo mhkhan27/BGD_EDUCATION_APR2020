@@ -2,9 +2,6 @@ rm(list = ls())
 library(dplyr)
 library(butteR)
 
-# dropbox_path <- "C:\\Users\\MEHEDI\\Dropbox\\REACH_BGD\\REACH\\Ongoing\\70iAMD 70EAD - Host Community Education\\04_daily_monitoring\\01_facility_assessment\\03_data_cleaning_tracker"
-
-
 cleaning_log <- read.csv("inputs/01_data_collection/03_cleaned_data/cleaning_log.csv",stringsAsFactors = F, 
                          na.strings = c(""," ", "n/a",NA)) %>% dplyr::filter(Issue != c("Added new column", "Added new column based on prevalence of other response"))
 
