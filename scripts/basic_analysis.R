@@ -46,9 +46,13 @@ colnames_single_ans_df <-analysis_sheet %>% filter(Mutiple_choice == 0)
 colnames_single_ans_stw<- colnames_single_ans_df$Main.variable.of.interest %>% as.character()%>% dput()
 
 
+# recoding_cols -----------------------------------------------------------
+
+recoding_cols <- data_for_analysis %>% dplyr::select(starts_with("i.")) %>% colnames()
+
 # all columns -------------------------------------------------------------
 
-all_coloumn_names <- c(colnames_single_ans_stw,all_mutiple,"upazilla","facility_type") 
+all_coloumn_names <- c(colnames_single_ans_stw,all_mutiple,recoding_cols,"upazilla","facility_type") 
 
 
 # analysis ----------------------------------------------------------------
