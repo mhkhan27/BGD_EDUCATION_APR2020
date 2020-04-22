@@ -5,8 +5,9 @@ library(butteR)
 cleaning_log <- read.csv("inputs/01_data_collection/03_cleaned_data/cleaning_log.csv",stringsAsFactors = F, 
                          na.strings = c(""," ", "n/a",NA)) %>% dplyr::filter(Issue != c("Added new column", "Added new column based on prevalence of other response"))
 
-raw_df <- read.csv("inputs/01_data_collection/03_cleaned_data/master_data.csv",stringsAsFactors = F, 
+raw_df <- read.csv("inputs/01_data_collection/03_cleaned_data/BGD_Education_Facility_Survey.csv",stringsAsFactors = F, 
                    na.strings = c(""," ", "n/a",NA))
+
 butteR::check_cleaning_log(df = raw_df,df_uuid = "X_uuid",cl = cleaning_log,cl_change_type_col = "change_type",cl_uuid = "uuid",
                            cl_change_col = "indicator",cl_new_val = "new_value")
 
